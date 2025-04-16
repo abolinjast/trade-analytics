@@ -1,0 +1,12 @@
+# .gitignore
+.env
+node_modules/
+.DS_Store
+vendor/
+.idea/
+docker-compose.override.yml
+*.log
+
+# Additional entries
+*.env.production
+secrets/
