@@ -22,10 +22,10 @@ ini_set('display_errors', 1);
             <span>TradeAnalytics</span>
         </div>
         <nav class="nav flex-column">
-            <a class="nav-link active" href="#"><i class="fas fa-home me-2"></i>Dashboard</a>
-            <a class="nav-link" href="#"><i class="fas fa-history me-2"></i>Trade History</a>
-            <a class="nav-link" href="#"><i class="fas fa-chart-pie me-2"></i>Statistics</a>
-            <a class="nav-link" href="#"><i class="fas fa-cog me-2"></i>Settings</a>
+            <a class="nav-link active" href="dashboard.php"><i class="fas fa-home me-2"></i>Dashboard</a>
+            <a class="nav-link" href="history.php"><i class="fas fa-history me-2"></i>Trade History</a>
+            <a class="nav-link" href="stats.php"><i class="fas fa-chart-pie me-2"></i>Statistics</a>
+            <a class="nav-link" href="settings.php"><i class="fas fa-cog me-2"></i>Settings</a>
         </nav>
     </div>
 
