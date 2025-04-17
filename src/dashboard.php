@@ -12,6 +12,11 @@ ini_set('display_errors', 1);
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
+        .chart-container {
+            position: relative;
+            height: 400px;
+            width: 100%;
+        }
         <?php include 'styles.css'; ?>
     </style>
 </head>
@@ -73,7 +78,7 @@ ini_set('display_errors', 1);
                 <div class="col-lg-8">
                     <div class="card mb-4 shadow-sm">
                         <div class="card-header bg-primary text-white">Cumulative PnL History</div>
-                        <div class="card-body">
+                        <div class="card-body chart-container">
                             <canvas id="cumulativePnlChart"></canvas>
                         </div>
                     </div>
@@ -81,7 +86,7 @@ ini_set('display_errors', 1);
                 <div class="col-lg-4">
                     <div class="card mb-4 shadow-sm">
                         <div class="card-header bg-success text-white">Win/Loss Distribution</div>
-                        <div class="card-body">
+                        <div class="card-body chart-container">
                             <canvas id="winLossChart"></canvas>
                         </div>
                     </div>
@@ -92,7 +97,7 @@ ini_set('display_errors', 1);
                 <div class="col-12">
                     <div class="card shadow-sm">
                         <div class="card-header bg-info text-white">Daily PnL Breakdown</div>
-                        <div class="card-body">
+                        <div class="card-body chart-container">
                             <canvas id="dailyPnlChart"></canvas>
                         </div>
                     </div>
@@ -102,22 +107,20 @@ ini_set('display_errors', 1);
     </div>
 
     <script>
-        let cumulativePnlChart, winLossChart, dailyPnlChart;
+        let cumulativePnlChart = null;
+        let winLossChart = null;
+        let dailyPnlChart = null;
+        let initialLoad = true;
+
         const elements = {
-            timePeriod: null,
-            symbolFilter: null,
-            timeframeFilter: null,
-            positionTypeFilter: null,
-            errorAlert: null
+            timePeriod: document.getElementById('timePeriod'),
+            symbolFilter: document.getElementById('symbolFilter'),
+            timeframeFilter: document.getElementById('timeframeFilter'),
+            positionTypeFilter: document.getElementById('positionTypeFilter'),
+            errorAlert: document.getElementById('errorAlert')
         };
 
         function init() {
-            elements.timePeriod = document.getElementById('timePeriod');
-            elements.symbolFilter = document.getElementById('symbolFilter');
-            elements.timeframeFilter = document.getElementById('timeframeFilter');
-            elements.positionTypeFilter = document.getElementById('positionTypeFilter');
-            elements.errorAlert = document.getElementById('errorAlert');
-
             if (!validateElements()) {
                 showError('Critical UI components missing!');
                 return;
@@ -127,6 +130,7 @@ ini_set('display_errors', 1);
                 s.addEventListener('change', loadData);
             });
 
+            // Initial load with default filters
             loadData();
         }
 
@@ -136,6 +140,7 @@ ini_set('display_errors', 1);
 
         async function loadData() {
             try {
+                showLoading();
                 const params = new URLSearchParams({
                     timePeriod: elements.timePeriod.value,
                     symbol: elements.symbolFilter.value,
@@ -145,68 +150,84 @@ ini_set('display_errors', 1);
 
                 const response = await fetch(`api.php?${params}`);
                 
-                if (!response.ok) throw new Error(`HTTP error! Status: ${response.status}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! Status: ${response.status}`);
+                }
                 
-                const { status, data, message } = await response.json();
-                if (status !== 'success') throw new Error(message);
-
-                if (!data?.length) {
-                    showError('No trades found matching criteria');
-                    updateCharts([]);
-                    return;
+                const result = await response.json();
+                
+                if (result.status !== 'success') {
+                    throw new Error(result.message || 'API request failed');
                 }
 
-                populateFilters(data);
-                updateCharts(data);
-                hideError();
+                if (initialLoad) {
+                    populateFilters(result.data);
+                    initialLoad = false;
+                }
+
+                updateCharts(result.data);
 
             } catch (error) {
                 showError(error.message);
-                updateCharts([]);
+                updateCharts([]); // Reset charts on error
+            } finally {
+                hideLoading();
             }
         }
 
         function populateFilters(trades) {
-            populateSelect(elements.symbolFilter, 
-                ['all', ...new Set(trades.map(t => t.symbol))]);
-            populateSelect(elements.timeframeFilter, 
-                ['all', ...new Set(trades.map(t => t.timeframe))]);
-        }
-
-        function populateSelect(select, options) {
-            select.innerHTML = options.map(opt => 
-                `<option value="${opt}">${opt}</option>`
-            ).join('');
+            try {
+                const symbols = ['all', ...new Set(trades.map(t => t.symbol).filter(Boolean))];
+                const timeframes = ['all', ...new Set(trades.map(t => t.timeframe).filter(Boolean))];
+                
+                elements.symbolFilter.innerHTML = symbols.map(s => 
+                    `<option value="${s}">${s}</option>`
+                ).join('');
+                
+                elements.timeframeFilter.innerHTML = timeframes.map(t => 
+                    `<option value="${t}">${t}</option>`
+                ).join('');
+            } catch (error) {
+                showError(`Filter population error: ${error.message}`);
+            }
         }
 
         function updateCharts(trades) {
             destroyCharts();
             
-            if (trades.length === 0) {
-                showError('No data available for selected filters');
+            if (!trades || trades.length === 0) {
+                showError('No trading data found for selected filters');
                 return;
             }
 
-            const cumulativeData = processCumulativeData(trades);
-            const winLossData = processWinLossData(trades);
-            const dailyData = processDailyData(trades);
-
-            renderCumulativeChart(cumulativeData);
-            renderWinLossChart(winLossData);
-            renderDailyChart(dailyData);
+            try {
+                cumulativePnlChart = createLineChart('cumulativePnlChart', 
+                    processCumulativeData(trades));
+                
+                winLossChart = createDoughnutChart('winLossChart', 
+                    processWinLossData(trades));
+                
+                dailyPnlChart = createBarChart('dailyPnlChart', 
+                    processDailyData(trades));
+                
+                hideError();
+            } catch (error) {
+                showError(`Chart rendering error: ${error.message}`);
+            }
         }
 
         function processCumulativeData(trades) {
             let cumulative = 0;
             return {
-                dates: trades.map(t => t.trade_date),
-                amounts: trades.map(t => cumulative += Number(t.profit_loss))
+                labels: trades.map(t => t.trade_date),
+                data: trades.map(t => cumulative += Number(t.profit_loss) || 0)
             };
         }
 
         function processWinLossData(trades) {
             return trades.reduce((acc, t) => {
-                Number(t.profit_loss) >= 0 ? acc.wins++ : acc.losses++;
+                if (Number(t.profit_loss) >= 0) acc.wins++;
+                else acc.losses++;
                 return acc;
             }, { wins: 0, losses: 0 });
         }
@@ -214,73 +235,107 @@ ini_set('display_errors', 1);
         function processDailyData(trades) {
             const daily = {};
             trades.forEach(t => {
-                daily[t.trade_date] = (daily[t.trade_date] || 0) + Number(t.profit_loss);
+                const date = t.trade_date;
+                if (!date) return;
+                daily[date] = (daily[date] || 0) + (Number(t.profit_loss) || 0);
             });
             return {
-                dates: Object.keys(daily),
-                amounts: Object.values(daily)
+                labels: Object.keys(daily).sort(),
+                data: Object.keys(daily).sort().map(date => daily[date])
             };
         }
 
-        function renderCumulativeChart(data) {
-            cumulativePnlChart = new Chart(document.getElementById('cumulativePnlChart'), {
+        function createLineChart(canvasId, chartData) {
+            const canvas = resetCanvas(canvasId);
+            return new Chart(canvas, {
                 type: 'line',
                 data: {
-                    labels: data.dates,
+                    labels: chartData.labels,
                     datasets: [{
                         label: 'Cumulative PnL',
-                        data: data.amounts,
+                        data: chartData.data,
                         borderColor: '#4e73df',
                         borderWidth: 2,
-                        fill: false
+                        fill: false,
+                        tension: 0.1
                     }]
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false
-                }
+                options: getChartOptions()
             });
         }
 
-        function renderWinLossChart(data) {
-            winLossChart = new Chart(document.getElementById('winLossChart'), {
+        function createDoughnutChart(canvasId, chartData) {
+            const canvas = resetCanvas(canvasId);
+            return new Chart(canvas, {
                 type: 'doughnut',
                 data: {
                     labels: ['Wins', 'Losses'],
                     datasets: [{
-                        data: [data.wins, data.losses],
-                        backgroundColor: ['#1cc88a', '#e74a3b']
+                        data: [chartData.wins, chartData.losses],
+                        backgroundColor: ['#1cc88a', '#e74a3b'],
+                        borderWidth: 0
                     }]
                 },
                 options: {
-                    responsive: true,
-                    maintainAspectRatio: false
+                    ...getChartOptions(),
+                    cutout: '70%',
+                    plugins: {
+                        legend: {
+                            position: 'bottom'
+                        }
+                    }
                 }
             });
         }
 
-        function renderDailyChart(data) {
-            dailyPnlChart = new Chart(document.getElementById('dailyPnlChart'), {
+        function createBarChart(canvasId, chartData) {
+            const canvas = resetCanvas(canvasId);
+            return new Chart(canvas, {
                 type: 'bar',
                 data: {
-                    labels: data.dates,
+                    labels: chartData.labels,
                     datasets: [{
                         label: 'Daily PnL',
-                        data: data.amounts,
-                        backgroundColor: '#36b9cc'
+                        data: chartData.data,
+                        backgroundColor: '#36b9cc',
+                        borderWidth: 1
                     }]
                 },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false
-                }
+                options: getChartOptions()
             });
+        }
+
+        function resetCanvas(canvasId) {
+            const container = document.getElementById(canvasId).parentNode;
+            const newCanvas = document.createElement('canvas');
+            newCanvas.id = canvasId;
+            container.innerHTML = '';
+            container.appendChild(newCanvas);
+            return newCanvas;
+        }
+
+        function getChartOptions() {
+            return {
+                responsive: true,
+                maintainAspectRatio: false,
+                animation: {
+                    duration: 300
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true
+                    }
+                }
+            };
         }
 
         function destroyCharts() {
             [cumulativePnlChart, winLossChart, dailyPnlChart].forEach(chart => {
-                chart?.destroy();
+                if (chart) chart.destroy();
             });
+            cumulativePnlChart = null;
+            winLossChart = null;
+            dailyPnlChart = null;
         }
 
         function showError(message) {
@@ -289,6 +344,19 @@ ini_set('display_errors', 1);
         }
 
         function hideError() {
+            elements.errorAlert.classList.add('d-none');
+        }
+
+        function showLoading() {
+            elements.errorAlert.textContent = 'Loading data...';
+            elements.errorAlert.classList.remove('d-none');
+            elements.errorAlert.classList.remove('alert-danger');
+            elements.errorAlert.classList.add('alert-info');
+        }
+
+        function hideLoading() {
+            elements.errorAlert.classList.remove('alert-info');
+            elements.errorAlert.classList.add('alert-danger');
             elements.errorAlert.classList.add('d-none');
         }
 
