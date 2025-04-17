@@ -12,66 +12,7 @@ ini_set('display_errors', 1);
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
     <style>
-        .sidebar {
-            background-color: #2c3e50;
-            color: white;
-            height: 100vh;
-            position: fixed;
-            left: 0;
-            width: 250px;
-            padding: 20px;
-            z-index: 1000;
-        }
-        
-        .main-content {
-            margin-left: 250px;
-            padding: 20px;
-            min-height: 100vh;
-        }
-
-        .nav-link {
-            color: #bdc3c7;
-            padding: 10px 15px;
-            border-radius: 5px;
-            margin: 5px 0;
-            transition: all 0.3s;
-        }
-
-        .nav-link:hover {
-            background-color: #34495e;
-            color: white;
-            text-decoration: none;
-        }
-
-        .nav-link.active {
-            background-color: #3498db;
-            color: white;
-        }
-
-        .logo {
-            font-size: 24px;
-            margin-bottom: 30px;
-            padding: 10px;
-            border-bottom: 1px solid #34495e;
-            display: flex;
-            align-items: center;
-        }
-
-        .logo i {
-            margin-right: 10px;
-        }
-
-        .alert {
-            margin: 20px;
-            position: fixed;
-            top: 20px;
-            right: 20px;
-            z-index: 1001;
-        }
-
-        canvas {
-            max-height: 500px;
-        }
+        <?php include 'styles.css'; ?>
     </style>
 </head>
 <body>
